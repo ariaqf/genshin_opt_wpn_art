@@ -1,64 +1,21 @@
 from random import Random
+import time
 from collections import namedtuple
+from constants import sub_buffs, min_subroll, mean_subroll, max_subroll, subroll_dist
 
 Stats = namedtuple('Stats', "plume flower sands goblet circlet")
 
 class Build:
-    sub_buffs = ["HP", "ATK", "DEF", "HP%", "ATK%", "DEF%", "EM", "ER", "CRATE", "CDMG"]
-    min_subroll = {
-                    'HP': 209,
-                    'ATK': 14,
-                    'DEF': 16,
-                    'HP%': 4.1,
-                    'ATK%': 4.1,
-                    'DEF%': 5.1,
-                    'EM': 16,
-                    'ER': 4.5,
-                    'CRATE': 2.7,
-                    'CDMG': 5.4
-                  }
-    mean_subroll = {
-                    'HP': 254.0,
-                    'ATK': 16.75,
-                    'DEF': 19.75,
-                    'HP%': 4.975,
-                    'ATK%': 4.975,
-                    'DEF%': 6.2,
-                    'EM': 19.75,
-                    'ER': 5.5,
-                    'CRATE': 3.3,
-                    'CDMG': 6.6
-                  }
-    max_subroll = {
-                    'HP': 299,
-                    'ATK': 19,
-                    'DEF': 23,
-                    'HP%': 5.8,
-                    'ATK%': 5.8,
-                    'DEF%': 7.3,
-                    'EM': 23,
-                    'ER': 6.5,
-                    'CRATE': 3.9,
-                    'CDMG': 7.8
-                  }
-    subroll_dist = {
-        "HP":[209,239,269,299],
-        "ATK":[14,16,18,19],
-        "DEF":[16,19,21,23],
-        "HP%":[4.10,4.70,5.30,5.80],
-        "ATK%":[4.10,4.70,5.30,5.80],
-        "DEF%":[5.10,5.80,6.60,7.30],
-        "EM":[16,19,21,23],
-        "ER":[4.50,5.20,5.80,6.50],
-        "CRATE":[2.70,3.10,3.50,3.90],
-        "CDMG":[5.40,6.20,7,7.80]
-    }
-   
     def __init__(self, Weapon, Character, Set, Sands_main, Goblet_main, Circlet_main, constraints,
                  subroll_to_use=None, fit_function=None, max_total_rolls = 9, max_optimizable_subs = 4, 
                  locked_subs = {"plume":[], "flower":[], "sands":[], "goblet":[], "circlet":[]},
                  starting_subs = {"plume":[], "flower":[], "sands":[], "goblet":[], "circlet":[]},
                  use_random = False, use_min = False, use_max = True):
+        self.sub_buffs = sub_buffs[:]
+        self.min_subroll = min_subroll.copy()
+        self.mean_subroll = mean_subroll.copy()
+        self.mean_subroll = max_subroll.copy()
+        self.subroll_dist = subroll_dist.copy()
         self.use_random = use_random
         self.use_min = use_min
         self.use_max = use_max
@@ -174,8 +131,8 @@ class Build:
             "BURST_DMG": self.burst_dmg,
         }
         
-    def is_valid_exchange(self,slot,new=None,old=None):
-        max_one_sub_rolls = self.max_total_rolls - 3
+     def is_valid_exchange(self,slot,new=None,old=None):
+            max_one_sub_rolls = self.max_total_rolls - 3
         slot_subs = None
         if slot in self.subs._fields:
             slot_subs = getattr(self.subs, slot)
@@ -183,15 +140,20 @@ class Build:
             return False
         is_on_roll_limit = slot_subs.count(new) == max_one_sub_rolls
         is_main_stat = getattr(self.mains, slot) == new
-        is_on_artifact_limit = len(slot_subs) > self.max_total_rolls
+        is_on_artifact_limit = len(slot_subs) > self.max_total_rolls and len(slot_subs) >= self.max_optimizable_subs
         are_we_trying_to_use_unusable_slots = (slot_subs.count(new) > 0 and slot_subs.count(old) == 1)
         is_not_a_locked_sub = old not in self.locked_subs[slot]
+        resulting_subs = slot_subs[:]
+        resulting_subs.append(new)
         old_is_empty = old == None
         old_exists_in_subs = slot_subs.count(old) >= 1
+        if not old_is_empty and old_exists_in_subs:
+            resulting_subs.remove(old)
+        is_result_possible = len(set(resulting_subs)) <= 4
         result = not(is_on_roll_limit
                 or is_main_stat
                 or is_on_artifact_limit
-                or are_we_trying_to_use_unusable_slots) and (old_is_empty or old_exists_in_subs) and is_not_a_locked_sub
+                or are_we_trying_to_use_unusable_slots) and (old_is_empty or old_exists_in_subs) and is_not_a_locked_sub and is_result_possible
         return result
 
     def change_substat(self,slot,new=None,old=None):
