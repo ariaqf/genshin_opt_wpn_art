@@ -1,3 +1,4 @@
+from random import Random
 from collections import namedtuple
 
 Stats = namedtuple('Stats', "plume flower sands goblet circlet")
@@ -40,8 +41,27 @@ class Build:
                     'CRATE': 3.9,
                     'CDMG': 7.8
                   }
+    subroll_dist = {
+        "HP":[209,239,269,299],
+        "ATK":[14,16,18,19],
+        "DEF":[16,19,21,23],
+        "HP%":[4.10,4.70,5.30,5.80],
+        "ATK%":[4.10,4.70,5.30,5.80],
+        "DEF%":[5.10,5.80,6.60,7.30],
+        "EM":[16,19,21,23],
+        "ER":[4.50,5.20,5.80,6.50],
+        "CRATE":[2.70,3.10,3.50,3.90],
+        "CDMG":[5.40,6.20,7,7.80]
+    }
+   
     def __init__(self, Weapon, Character, Set, Sands_main, Goblet_main, Circlet_main, constraints,
-                 subroll_to_use=None, fit_function=None, max_total_rolls = 9, max_optimizable_subs = 4, locked_subs = {"plume":[], "flower":[], "sands":[], "goblet":[], "circlet":[]}):
+                 subroll_to_use=None, fit_function=None, max_total_rolls = 9, max_optimizable_subs = 4, 
+                 locked_subs = {"plume":[], "flower":[], "sands":[], "goblet":[], "circlet":[]},
+                 starting_subs = {"plume":[], "flower":[], "sands":[], "goblet":[], "circlet":[]},
+                 use_random = False, use_min = False, use_max = True):
+        self.use_random = use_random
+        self.use_min = use_min
+        self.use_max = use_max
         self.max_total_rolls = max_total_rolls
         self.max_optimizable_subs = min(max_optimizable_subs, 4)
         self.locked_subs = locked_subs
@@ -57,17 +77,38 @@ class Build:
         self.character = Character
         self.set = Set
         self.mains = Stats("ATK", "HP", Sands_main, Goblet_main, Circlet_main)
-        self.subs = Stats([], [], [], [], [])
+        self.subs = Stats(starting_subs["plume"][:], 
+                          starting_subs["flower"][:], 
+                          starting_subs["sands"][:], 
+                          starting_subs["goblet"][:], 
+                          starting_subs["circlet"][:])
         self.final_dmg = 0.0
         self.constraints = constraints
-        
         self.calculate_stats()
+    
+    def choice(self, l, use_max = False, use_min = False, use_random = False):
+        ret = 0
+        if self.use_random:
+            r = Random()
+            r.seed(time.time())
+            return r.choice(l)
+        if self.use_max:
+            return l[-1]
         
+        if self.use_min:
+            return l[0]
+        
+        for i in l:
+            ret += i
+        ret = ret/len(l)
+        
+        return ret
+            
     def calculate_stats(self):
         substats = {"HP":0.0, "ATK":0.0, "DEF":0.0, "HP%":0.0, "ATK%":0.0, "DEF%":0.0, "EM":0.0, "ER":0.0, "CRATE":0.0, "CDMG":0.0}
         for (slot,_subs) in self.subs._asdict().items():
             for sub in _subs:
-                substats[sub] += self.subroll[sub]
+                substats[sub] += self.choice(self.subroll_dist[sub])
         self.b_atk = self.weapon["BATK"] + self.character["BATK"]
         self.b_def = self.character["BDEF"]
         self.b_hp = self.character["BHP"]
@@ -118,7 +159,7 @@ class Build:
             "HP%": self.p_hp,
             "ATK%": self.p_atk,
             "DEF%": self.p_def,
-            "CRATE": self.c_rate,
+            "CRATE": min(self.c_rate, 100.0),
             "CDMG": self.c_dmg,
             "ASPD": self.atk_per_10s/10,
             "PYRO_DMG": self.pyro_dmg,
@@ -146,11 +187,12 @@ class Build:
         are_we_trying_to_use_unusable_slots = (slot_subs.count(new) > 0 and slot_subs.count(old) == 1)
         is_not_a_locked_sub = old not in self.locked_subs[slot]
         old_is_empty = old == None
-        old_exists_in_subs = slot_subs.count(old) == 1
-        return not(is_on_roll_limit
+        old_exists_in_subs = slot_subs.count(old) >= 1
+        result = not(is_on_roll_limit
                 or is_main_stat
                 or is_on_artifact_limit
                 or are_we_trying_to_use_unusable_slots) and (old_is_empty or old_exists_in_subs) and is_not_a_locked_sub
+        return result
 
     def change_substat(self,slot,new=None,old=None):
         max_one_sub_rolls = self.max_total_rolls - 3
@@ -236,6 +278,7 @@ class Build:
     def get_sub_value_rate(self, investment=1):
         sub_add_upgrade = {k:0.0 for k in self.sub_buffs}
         sub_exchange_upgrade = {k:{k_:0.0 for k_ in self.sub_buffs} for k in self.sub_buffs}
+        r = Random()
         
         sheet = self.generate_sheet()
         
@@ -244,8 +287,9 @@ class Build:
         added_value = {k:0.0 for k in self.sub_buffs}
         
         for sub in self.sub_buffs:
+            r.seed(time.time())
             s_sheet = sheet.copy()
-            s_sheet[sub] += investment*self.subroll[sub]
+            s_sheet[sub] += investment*self.choice(self.subroll_dist[sub])
             added_value[sub] = self.fit_function(s_sheet)
                
         for sub in sub_add_upgrade:
@@ -254,19 +298,21 @@ class Build:
         
         for (sub,others) in sub_exchange_upgrade.items():
             for _sub in others:
+                r.seed(time.time())
                 ex = sheet.copy()
-                ex[sub] += investment*self.subroll[sub]
-                ex[_sub] -= investment*self.subroll[_sub]
+                ex[sub] += investment*self.choice(self.subroll_dist[sub])
+                ex[_sub] -= investment*self.choice(self.subroll_dist[sub])
                 sub_exchange_upgrade[sub][_sub] = self.fit_function(ex) - baseline
         
         for (sub,value) in self.constraints.items():
+            r.seed(time.time())
             if value["minimum"] is not None and sheet[sub] < value["minimum"]:
                 sub_add_upgrade[sub] = 2*baseline
                 for _sub in sub_exchange_upgrade:
                     if(_sub != sub):
                         sub_exchange_upgrade[_sub][sub] = -2*baseline
                         sub_exchange_upgrade[sub][_sub] = 2*baseline
-            if(value["minimum"] is not None and  sheet[sub] - self.subroll[sub] < value["minimum"]):
+            if(value["minimum"] is not None and  sheet[sub] - self.choice(self.subroll_dist[sub]) < value["minimum"]):
                 for _sub in sub_exchange_upgrade:
                     if(_sub != sub):
                         sub_exchange_upgrade[_sub][sub] = -2*baseline
@@ -277,14 +323,14 @@ class Build:
                     if(_sub != sub):
                         sub_exchange_upgrade[_sub][sub] = 2*baseline
                         sub_exchange_upgrade[sub][_sub] = -2*baseline
-            if(value["maximum"] is not None and sheet[sub] - self.subroll[sub] > value["maximum"]):
+            if(value["maximum"] is not None and sheet[sub] - self.choice(self.subroll_dist[sub]) > value["maximum"]):
                 for _sub in sub_exchange_upgrade:
                     if(_sub != sub):
                         sub_exchange_upgrade[_sub][sub] = 0.0
                         sub_exchange_upgrade[sub][_sub] = -2*baseline
-                        
-        return {"add": sub_add_upgrade,
+        ex = {"add": sub_add_upgrade,
                 "exchange": sub_exchange_upgrade}
+        return ex
     
     def to_dict(self):
         return {
@@ -361,6 +407,8 @@ class Build:
                     print(slot)
                     print(valid_exchange)
                     print(possible["total"][slot])
+                    print(rates[op_type.lower()])
+                    print(getattr(self.mains,slot))
                     print(op_type)
                     print(best_sub)
                     print(best_removal)
