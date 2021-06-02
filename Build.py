@@ -131,29 +131,48 @@ class Build:
             "BURST_DMG": self.burst_dmg,
         }
         
-     def is_valid_exchange(self,slot,new=None,old=None):
-            max_one_sub_rolls = self.max_total_rolls - 3
+    def is_valid_exchange(self,slot,new=None,old=None, step=1):
+        max_one_sub_rolls = self.max_total_rolls - 3
         slot_subs = None
         if slot in self.subs._fields:
             slot_subs = getattr(self.subs, slot)
         else:
             return False
-        is_on_roll_limit = slot_subs.count(new) == max_one_sub_rolls
-        is_main_stat = getattr(self.mains, slot) == new
-        is_on_artifact_limit = len(slot_subs) > self.max_total_rolls and len(slot_subs) >= self.max_optimizable_subs
-        are_we_trying_to_use_unusable_slots = (slot_subs.count(new) > 0 and slot_subs.count(old) == 1)
-        is_not_a_locked_sub = old not in self.locked_subs[slot]
+        """Checking old data"""
+        old_is_empty = old == None
+        old_exists_in_subs = old in slot_subs and slot_subs.count(old) >= step
+        
+        """Checking if operation is valid"""
+        is_old_enough_for_step = slot_subs.count(old) <= step
+        are_we_trying_to_use_unusable_slots = (slot_subs.count(new) > 0 and not(old_is_empty) and is_old_enough_for_step)
+        
         resulting_subs = slot_subs[:]
         resulting_subs.append(new)
-        old_is_empty = old == None
-        old_exists_in_subs = slot_subs.count(old) >= 1
         if not old_is_empty and old_exists_in_subs:
             resulting_subs.remove(old)
         is_result_possible = len(set(resulting_subs)) <= 4
-        result = not(is_on_roll_limit
+        
+        """Are we disrespecting a constraint?"""
+        is_on_roll_limit = slot_subs.count(new) == max_one_sub_rolls
+        is_main_stat = getattr(self.mains, slot) == new
+        is_on_artifact_limit = len(slot_subs) > self.max_total_rolls and len(set(slot_subs)) >= self.max_optimizable_subs
+        
+        is_not_a_locked_sub = old not in self.locked_subs[slot]
+        if(False):
+            print("******Start Valid Exchange******")
+            print(is_on_roll_limit)
+            print(is_main_stat)
+            print(is_on_artifact_limit)
+            print(are_we_trying_to_use_unusable_slots)
+            print(old_is_empty or old_exists_in_subs)
+            print(is_not_a_locked_sub and is_result_possible)
+            print("******End Valid Exchange******")
+        result = (not(is_on_roll_limit
                 or is_main_stat
                 or is_on_artifact_limit
-                or are_we_trying_to_use_unusable_slots) and (old_is_empty or old_exists_in_subs) and is_not_a_locked_sub and is_result_possible
+                or are_we_trying_to_use_unusable_slots) and 
+                (old_is_empty or old_exists_in_subs) and 
+                is_not_a_locked_sub and is_result_possible)
         return result
 
     def change_substat(self,slot,new=None,old=None):
@@ -334,6 +353,10 @@ class Build:
             rates = self.get_sub_value_rate()
             total_operations = 0
             for slot in possible["add"]:
+                slot_subs = getattr(self.subs,slot)
+                min_step = 6
+                for s in set(slot_subs):
+                    min_step = min(min_step, slot_subs.count(s))
                 best_sub = None
                 best_removal = None
                 p_list = []
@@ -352,19 +375,19 @@ class Build:
                     p_list = possible["exchange"][slot]
                     for sub in p_list:
                         for (_sub, value) in rates['exchange'][sub].items():
-                            valid_exchange = self.is_valid_exchange(slot,sub,_sub)
-                            if (_sub in p_list and valid_exchange and 
-                                ((best_sub is None and best_removal == None) or (rates['exchange'][best_sub][best_removal] < rates['exchange'][sub][_sub])) 
-                                and rates['exchange'][sub][_sub] > 0):
-                                best_sub = sub
-                                best_removal = _sub
-                            else: 
-                                pass
-                slot_subs = getattr(self.subs,slot)
+                            for step in range(1,min_step+1):
+                                valid_exchange = self.is_valid_exchange(slot,sub,_sub, step)
+                                if (_sub in p_list and valid_exchange and 
+                                    ((best_sub is None and best_removal == None) or (rates['exchange'][best_sub][best_removal] < rates['exchange'][sub][_sub])) 
+                                    and rates['exchange'][sub][_sub] > 0):
+                                    best_sub = sub
+                                    best_removal = _sub
+                                else: 
+                                    pass
                 if(best_sub is not None and self.change_substat(slot, best_sub, best_removal)):
                     total_operations += 1
                     rates = self.get_sub_value_rate()
-                if(False): 
+                if(False):
                     #Log for debug
                     print(slot)
                     print(valid_exchange)
