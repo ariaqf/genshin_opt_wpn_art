@@ -30,8 +30,10 @@ def calc_trans_react(sheet):
     react_multiplier = 1.5
     return (1+(em/(1400+em))*reaction_type_multiplier + react_dmg/100.0)
 
-def generic_fit_function(sheet):
-    edmg = sheet["DMG"] + sheet["ELE_DMG"] + sheet["PYRO_DMG"]
+def generic_dmg_function(sheet, dmg_type=None):
+    edmg = sheet["DMG"] + sheet["ELE_DMG"]
+    if(dmg_type is not None):
+        edmg += sheet[dmg_type]
     pdmg = sheet["DMG"] + sheet["PHYS_DMG"]
     normal_dmg = sheet["NORM_DMG"]
     skill_dmg = sheet["ELE_SKILL_DMG"]
@@ -44,10 +46,10 @@ def generic_fit_function(sheet):
     # 1.5 for reverse vap, reverse melt; 2 for vap/melt
     # For everything else: Base Multiplier × Character Level Multiplier
     # Base Multiplier up there. Level Multiplier: 80 -> 946.4, 90 -> 1202.8, 100 -> 1674.8
-    return (b_atk*(1.0+p_atk/100.0) + atk) *  (edmg/100.0 + 1.0) * (min(c_rate/100.0,1) * c_dmg/100.0 + 1.0)
+    return total_atk *  (edmg/100.0 + 1.0) * (min(c_rate/100.0,1) * c_dmg/100.0 + 1.0)
 
 def zhongli_fit_function(sheet):
-    edmg = sheet["DMG"] + sheet["ELE_DMG"] + sheet["PYRO_DMG"]
+    edmg = sheet["DMG"] + sheet["ELE_DMG"] + sheet["GEO_DMG"]
     pdmg = sheet["DMG"] + sheet["PHYS_DMG"]
     normal_dmg = sheet["NORM_DMG"]
     skill_dmg = sheet["ELE_SKILL_DMG"]
