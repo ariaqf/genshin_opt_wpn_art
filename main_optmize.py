@@ -2,15 +2,16 @@
 
 from constants import all_stats, artifact_slots, Base_Multiplier
 from artifacts import all_sets
-from weapons import claymores as weapons
-from characters import Diluc
+from weapons import swords as weapons
+from characters import Kaeya
 from Build import Build
+from fit_functions import generic_dmg_function
 import json
 import time
 
 weapons = {name:{"Name":name, "Lv":90, **weapon} for (name,weapon) in weapons.items()}
-    
-characters = {"Diluc": Diluc}
+
+characters = {"Kaeya": Kaeya}
 
 constraints = {
     "EM": {"minimum":None, "maximum": None},
@@ -20,30 +21,7 @@ constraints = {
 all_stats = {k:0.0 for k in all_stats}
 
 def my_fit_function(sheet):
-    b_atk = sheet["BATK"]
-    p_atk = sheet["ATK%"]
-    atk = sheet["ATK"]
-    edmg = sheet["DMG"] + sheet["ELE_DMG"] + sheet["PYRO_DMG"]
-    pdmg = sheet["DMG"] + sheet["PHYS_DMG"]
-    normal_dmg = sheet["NORM_DMG"]
-    skill_dmg = sheet["ELE_SKILL_DMG"]
-    burst_dmg = sheet["BURST_DMG"]
-    c_rate = min(sheet["CRATE"],100)
-    c_dmg = sheet["CDMG"]
-    em = sheet["EM"]
-    react_dmg = sheet["REACT_DMG"]
-    # 2.78 for melt/vap or 6.67 for everything else
-    reaction_type_multiplier = 2.78
-    # 1.5 for reverse vap, reverse melt; 2 for vap/melt
-    # For everything else: Base Multiplier × Character Level Multiplier
-    # Base Multiplier up there. Level Multiplier: 80 -> 946.4, 90 -> 1202.8, 100 -> 1674.8
-    react_multiplier = 1.5
-    # for vap/melt
-    react_final_multiplier = react_multiplier * (1+(em/(1400+em))*reaction_type_multiplier + react_dmg/100.0)
-    #QAAAEAAAEAAAEAAA (vap on Q and E)
-    #return 1.51*(b_atk*(1.0+p_atk/100.0) + atk) *  (edmg/100.0 + 1.0) * (min(c_rate/100.0,1) * c_dmg/100.0 + 1.0)
-    return (((326 + 96*3)/100.0*(1+burst_dmg/100.0) * react_final_multiplier + 4*472/100.0*(1+normal_dmg/100.0) + (151 + 156 + 206)/100.0*(1+skill_dmg/100.0)* react_final_multiplier)
-            *(b_atk*(1.0+p_atk/100.0) + atk) *  (edmg/100.0 + 1.0) * (min(c_rate/100.0,1) * c_dmg/100.0 + 1.0))/(4+3*4)
+    return (1.09 * (1+burst_dmg/100.0)) * generic_dmg_function(sheet, dmg_type="CRYO_DMG")
 
 ##### Generate All builds and optmize them
 builds = {}
