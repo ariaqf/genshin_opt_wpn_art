@@ -41,3 +41,18 @@ Kaeya = {
     "ER": 126.7,
     "ATK_PER_10s": 16,
 }
+
+Zhongli = {
+    "Name": "Zhongli",
+    "Lv": 80,
+    "BHP": 13662,
+    "BATK": 233,
+    "BDEF": 686,
+    "CRATE": 5,
+    "CDMG": 50,
+    "EM": 0,
+    "EDMG": 28.8,
+    "PDMG": 0,
+    "ER": 100,
+    "ATK_PER_10s": 20,
+}
